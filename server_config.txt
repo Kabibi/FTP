@@ -1,0 +1,4 @@
+State | Username | Password | Capability | Working Directory
+------------------------------------------------------------
+1     |  aaron   |   12345   |   rwx |   home/vinater
+1     |  liqin   |   qqqqq   |   rw  |   home/vinater/ftp
