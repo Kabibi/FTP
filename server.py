@@ -11,10 +11,10 @@ class MyFTPRequestHandler(SocketServer.StreamRequestHandler):
     have the dir and have the access to it before you start the server'''
 
     def handle(self):
-        if not os.path.exists('./ftp'):
-            os.mkdir('./ftp')
-        self.path = './ftp/'
-        self.auth()
+        # get mode and working path
+        self.mode, self.path = self.auth()
+        if not os.path.exists(self.path):
+            os.mkdir(self.path)
         os.chdir(self.path)
         self.run()
 
@@ -23,26 +23,32 @@ class MyFTPRequestHandler(SocketServer.StreamRequestHandler):
         验证用户名和密码是否正确
         :return:
         '''
+        try:
+            configFile = open('server_config.txt')
+        except IOError, e:
+            print "could find or open file:", e
+
+        # allLines = configFile.readLines()
+        allLines = configFile.readlines()
+
+
         while True:
             self.request.sendall("Username: ")
             self.name = self.request.recv(BUFFERSIZE).strip('\n')
-            # 如果输入的用户名不存在
-            if self.name not in auth_dic:
-                self.request.sendall("Username doesn't exists, please retype: ")
-                continue
-            # 请求输入密码
             self.request.sendall("Password: ")
             self.passwd = self.request.recv(BUFFERSIZE).strip('\n')
-            if self.passwd != auth_dic[self.name]:
-                # self.request.sendall('FAILED')
-                self.request.sendall("Password is incorrect!\n")
-                continue
-            # 登陆成功
-            self.request.sendall('Authenticate OK\n')
+
+            for line in allLines:
+                formatted = [x for x in line.split() if x != '|']
+                if formatted[0] == '1':
+                    if self.name == formatted[1] and self.passwd == formatted[2]:
+                        # return capability and working dir
+                        return formatted[3], formatted[4]
+            self.request.sendall("Username doesn't exist or password is incorrect. Please try again!\n")
             #########==========================================
-            self.type = 0 if self.name == 'ftp' else 1
+            # self.type = 0 if self.name == 'ftp' else 1
             #########==========================================
-            break
+            # break
 
     def getPrompt(self):
         return '\033[1m' + self.name + '@' + os.getcwd() + ': ' + '\033[0m'
@@ -134,7 +140,7 @@ class MyFTPRequestHandler(SocketServer.StreamRequestHandler):
 if __name__ == '__main__':
     HOST = '0.0.0.0'
     # PORT = 6670
-    PORT = 6666
+    PORT = 6668
     BUFFERSIZE = 4096
     # authenticate, <user: password>
     auth_dic = {'liqin': '123456', 'aaron': '123456'}
