@@ -84,10 +84,9 @@ class MyFTPServer():
             self.responses[fileno] = 'file doesn\'t exists or is a directory\n'
         else:
             while 1:
-                # filedata = fd.read(buffersize)
-                filedata = fd.read()
+                filedata = fd.read(buffersize)
                 if not filedata: break
-                self.responses[fileno] = filedata
+                self.responses[fileno] += filedata
 
     def putfile(self, filename, fileno):
         fd = file(filename, 'wb')
@@ -157,6 +156,9 @@ class MyFTPServer():
                                 self.responses[fileno] = 'please enter the filename!'
                             else:
                                 self.putfile(req.split()[1], fileno)
+                        # get file done!
+                        elif req == 'Done':
+                            pass
                         else:
                             self.responses[fileno] = 'Command not found'
                         # 输入回车，切换监听read事件改为write事件
@@ -170,7 +172,7 @@ class MyFTPServer():
                         # clear responses
                         self.responses[fileno] = ''
                         self.epoll.modify(fileno, select.EPOLLIN)
-                    elif event == select.EPOLLHUP:
+                    else:
                         self.epoll.unregister(fileno)
                         self.connections[fileno].close()
                         del self.connections[fileno]
