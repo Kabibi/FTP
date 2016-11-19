@@ -11,12 +11,12 @@ class MyFTPServer():
         self.connections = {}
         self.capability = {}
         self.workdir = {}
-        self.response = ''
         self.helpmessage = '\033[31;1m' \
-                           'ls\t\tshow the current directory\n' \
-                           'get\t\tget the file from ftp server\n' \
-                           'send\t\tsend the file to ftp server\n' \
-                           'cd\t\tchange directory\n' \
+                           'ls or ll       - show all file and directories in current working directory\n' \
+                           'get filename   - get file from ftp server\n' \
+                           'put filename   - send file to ftp server\n' \
+                           'cd [directory] - change directory\n' \
+                           'help or ?      - show help message\n' \
                            '\033[0m'
         # username for all clients
         self.names = {}
@@ -44,10 +44,10 @@ class MyFTPServer():
             while True:
                 # input username
                 self.connections[clientsocket.fileno()].send('Username:')
-                username = clientsocket.recv(1024).strip('\n')
+                username = clientsocket.recv(BUFFERSIZE).strip('\n')
                 # input password
                 self.connections[clientsocket.fileno()].send('Password:')
-                password = clientsocket.recv(1024).strip('\n')
+                password = clientsocket.recv(BUFFERSIZE).strip('\n')
 
                 for line in allLines:
                     formatted = [x for x in line.split() if x != '|']
@@ -77,6 +77,9 @@ class MyFTPServer():
 
     def getfile(self, filename, fileno):
         try:
+            if not os.path.exists(filename):
+                self.responses[fileno] = 'Oops, file doesn\'t exist on server!\n'
+                return
             fd = file(filename, 'rb')
         except IndexError:
             self.responses[fileno] = 'Useage: get filename\n'
@@ -84,21 +87,15 @@ class MyFTPServer():
             self.responses[fileno] = 'file doesn\'t exists or is a directory\n'
         else:
             while 1:
-                filedata = fd.read(buffersize)
+                filedata = fd.read(BUFFERSIZE)
                 if not filedata: break
                 self.responses[fileno] += filedata
+            fd.close()
 
-    def putfile(self, filename, fileno):
-        fd = file(filename, 'wb')
-        while True:
-            #############################################3
-            data2 = self.connections[fileno].recv(buffersize)
-            if data2 == 'file_send_done':
-                break
-            fd.write(data2)
+    def putfile(self, filename, content, fileno):
+        fd = file(filename + 'put', 'wb')
+        fd.write(content)
         fd.close()
-        print 'receive %s' % filename
-        self.responses[fileno] = 'OK'
 
     def run(self):
         try:
@@ -110,7 +107,6 @@ class MyFTPServer():
                         connection, clientaddress = self.serversocket.accept()
                         self.connections[connection.fileno()] = connection
                         self.requests[connection.fileno()] = b''
-                        self.responses[connection.fileno()] = self.response
                         # authenticate the username and password
                         self.auth(connection)
                         connection.send(self.getPrompt(connection))
@@ -120,7 +116,7 @@ class MyFTPServer():
                         self.epoll.register(connection.fileno(), select.EPOLLIN)
 
                     elif event == select.EPOLLIN:
-                        self.requests[fileno] = self.connections[fileno].recv(1024).strip()
+                        self.requests[fileno] = self.connections[fileno].recv(BUFFERSIZE).strip()
                         req = self.requests[fileno]
                         # enter 'bye'
                         if 'bye' in self.requests[fileno]:
@@ -147,24 +143,30 @@ class MyFTPServer():
                         # get file from ftp server
                         elif req.split()[0] == 'get':
                             if (len(req.split())) == 1:
-                                self.responses[fileno] = 'please enter the filename!'
+                                self.responses[fileno] = 'please enter the filename\n!'
                             else:
                                 self.getfile(req.split()[1], fileno)
                         # send file to ftp server
                         elif req.split()[0] == 'put':
-                            if (len(req.split())) == 1:
-                                self.responses[fileno] = 'please enter the filename!'
-                            else:
-                                self.putfile(req.split()[1], fileno)
-                        # get file done!
+                            content_list = req.split('\n')[1:]  # remove 'put XXX'
+                            content = ''
+                            # compose content from content_list
+                            for i in range(len(content_list)):
+                                content = content + content_list[i] + '\n'
+                            self.putfile(req.split()[1], content, fileno)
+                            self.responses[fileno] = 'Done!\n'
+                        elif req == 'Undone':
+                            self.responses[fileno] = 'Undone!\n'
                         elif req == 'Done':
-                            pass
+                            self.responses[fileno] = 'Done!\n'
+
                         else:
-                            self.responses[fileno] = 'Command not found'
+                            self.responses[fileno] = 'Command not found\n'
+
                         # 输入回车，切换监听read事件改为write事件
                         self.epoll.modify(fileno, select.EPOLLOUT)
                         print "Receive from %s:%d %s" % (
-                            clientaddress[0], clientaddress[1], self.requests[fileno].decode().split('\n'))
+                            clientaddress[0], clientaddress[1], self.requests[fileno].split('\n')[0])
 
                     elif event == select.EPOLLOUT:
                         self.connections[fileno].send(
@@ -176,15 +178,15 @@ class MyFTPServer():
                         self.epoll.unregister(fileno)
                         self.connections[fileno].close()
                         del self.connections[fileno]
-
+        except Exception:
+            print Exception.message
         finally:
-            self.epoll.unregister(self.serversocket.fileno())
-            self.epoll.close()
+            self.run()
 
 
 if __name__ == '__main__':
     host = '0.0.0.0'
     port = 8085
-    buffersize = 4096
+    BUFFERSIZE = 2 ** 20
     server = MyFTPServer(host, port)
     server.run()
