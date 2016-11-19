@@ -1,7 +1,6 @@
-# coding: utf-8
-import socket, select
 import os
-
+import select
+import socket
 
 class MyFTPServer():
     def __init__(self, host, port):
@@ -28,20 +27,23 @@ class MyFTPServer():
         self.authenticated = {}
         # create server socket
         self.serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # set option
         self.serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.serversocket.bind(self.serveraddress)
         self.serversocket.listen(1)
         self.serversocket.setblocking(0)
         # create a epoll object
         self.epoll = select.epoll()
+        # register read interests
         self.epoll.register(self.serversocket.fileno(), select.EPOLLIN)
 
     def auth(self, fileno, username, password):
         """
-        Authenticate the specific connection socket
-        with the username and password inputted by the user
-        :param clientsocket: socket used to connect the client and server
-        :return: none
+        authenticate client with the username and password provided
+        :param fileno:
+        :param username:
+        :param password:
+        :return: boolean
         """
         # Read the configuration file
         try:
@@ -53,34 +55,43 @@ class MyFTPServer():
                     # formatted[1] is username, formatted[2] is password
                     # formatted[3] is capability, formatted[4] is working directory
                     if username == formatted[1] and password == formatted[2]:
-                        # store the username
                         self.usernames[fileno] = username
-                        # store the capability
                         self.capability[fileno] = formatted[3]
-                        # store the working directory
                         self.workdir[fileno] = formatted[4]
                         return True
             self.connections[fileno].send("Authenticate failed. Please try again!\nUsername:")
             return False
-        except IOError:
-            print "couldn't find or open file:"  # print prompt to client console
+        except Exception:
+            print Exception.message
 
     def getPrompt(self, fileno):
-
+        """
+        print Prompt information to client console
+        :param fileno: the integer file description of the socket
+        :return: string
+        """
         return '\033[1m' + self.usernames[fileno] + '@' + os.getcwd() + ':' + '\033[0m'
 
     def cdpath(self, pathname, fileno):
+        """
+        Change to specific directory
+        :param pathname: must be a directory
+        :param fileno: the integer file description of the socket
+        :return: none
+        """
 
         if not os.path.isdir(pathname):
             self.responses[fileno] = pathname + ' not exist or is not a directory\n'
         else:
             os.chdir(pathname)
 
-
-            # client get file from server
-
     def getfile(self, filename, fileno):
-
+        """
+        client download file from the server with getfile method
+        :param filename: filename
+        :param fileno: the integer file description of the socket
+        :return: none
+        """
         try:
             if not os.path.exists(filename):
                 self.responses[fileno] = 'Oops, file doesn\'t exist on server!\n'
@@ -101,13 +112,39 @@ class MyFTPServer():
             # client put file to server
 
     def putfile(self, filename, content, fileno):
-
+        """
+        upload file to the server with putfile method
+        :param filename: filename
+        :param content: the content of the file
+        :param fileno: the integer file description of the socket
+        :return: none
+        """
         fd = file(filename + 'put', 'wb')
         fd.write(content)
         fd.close()
 
-    def run(self):
+    def release(self, fileno):
+        """
+        release resource
+        :param fileno:
+        :return: none
+        """
+        self.epoll.unregister(fileno)
+        self.connections[fileno].close()
+        del self.authenticated[fileno]
+        del self.capability[fileno]
+        del self.connections[fileno]
+        del self.workdir[fileno]
+        del self.usernames[fileno]
+        del self.passwords[fileno]
+        del self.responses[fileno]
+        del self.requests[fileno]
 
+    def run(self):
+        """
+        endless running of server
+        :return: none
+        """
         try:
             while True:
                 events = self.epoll.poll(1)
@@ -186,12 +223,13 @@ class MyFTPServer():
                         else:
                             self.responses[fileno] = 'Command not found\n'
 
-                        # 输入回车，切换监听read事件改为write事件
                         self.epoll.modify(fileno, select.EPOLLOUT)
                         print "Receive from %s:%d %s" % (
                             clientaddress[0], clientaddress[1], self.requests[fileno].split('\n')[0])
 
+                    # Write event occurs
                     elif event == select.EPOLLOUT:
+                        # if the client has been authenticated
                         if self.authenticated[fileno] != '2':
                             self.connections[fileno].send(self.responses[fileno])
                         else:
@@ -199,18 +237,11 @@ class MyFTPServer():
                                 self.responses[fileno] + self.getPrompt(fileno))
                         # clear responses
                         self.responses[fileno] = ''
+                        # modify interest
                         self.epoll.modify(fileno, select.EPOLLIN)
                     else:
-                        self.epoll.unregister(fileno)
-                        self.connections[fileno].close()
-                        del self.authenticated[fileno]
-                        del self.capability[fileno]
-                        del self.connections[fileno]
-                        del self.workdir[fileno]
-                        del self.usernames[fileno]
-                        del self.passwords[fileno]
-                        del self.responses[fileno]
-                        del self.requests[fileno]
+                        self.release(fileno)
+
         except Exception:
             print Exception.message
         finally:
