@@ -1,4 +1,6 @@
-State | Username | Password | Capability | Working Directory
+State | Username | Password | Capabilities | Working Directory
 ------------------------------------------------------------
-1     |  aaron   |   12345  |   rwx      |   /home/vinater
-1     |  liqin   |   qqqqq  |   rw       |   /home/vinater/ftp
+1     |  aaron   |   12345  |   w      |   /home/
+1     |  liqin   |   qqqqq  |   rw     |   /home/ftp
+1     |  Rachel  |   1996   |   r      |   /home/
+0     |  sky     |   abcd   |   rw     |   /tmp

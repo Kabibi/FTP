@@ -1,10 +1,10 @@
 # coding: utf-8
 
-import socket
 import os
+import socket
 
 host = '127.0.0.1'
-port = 8085
+port = 8089
 BUFFERSIZE = 2 ** 20
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((host, port))
@@ -15,12 +15,13 @@ while command != 'bye':
     # because received string maybe the content of the file,
     # so if clause must be ahead of print statement
     if len(command.split()) == 2 and command.split()[0] == 'get':
-        if 'Oops, file doesn\'t exist on server!\n' not in received:
+        if 'Oops, file doesn\'t exist on server!\n' not in received and \
+                        'Permission denied' not in received:
             filename = command.split()[1]
             basename, extension = os.path.splitext(command.split()[1])
             # if exist the file with the same filename
             if os.path.exists(filename):
-                file = open(basename + '_1' + extension, 'a')
+                file = open(basename + '_get' + extension, 'a')
             else:
                 file = open(filename, 'a')
             file.write(received)

@@ -2,15 +2,15 @@ import os
 import select
 import socket
 
+
 class MyFTPServer():
     def __init__(self, host, port):
         self.serveraddress = (host, port)
         self.responses = {}
         self.requests = {}
         self.connections = {}
-        self.capability = {}
+        self.capabilities = {}
         self.workdir = {}
-        self.last_req = {}
         self.helpmessage = '\033[31;1m' \
                            'ls or ll       - show all file and directories in current working directory\n' \
                            'get filename   - get file from ftp server\n' \
@@ -53,10 +53,10 @@ class MyFTPServer():
                 formatted = [x for x in line.split() if x != '|']
                 if formatted[0] == '1':
                     # formatted[1] is username, formatted[2] is password
-                    # formatted[3] is capability, formatted[4] is working directory
+                    # formatted[3] is capabilities, formatted[4] is working directory
                     if username == formatted[1] and password == formatted[2]:
                         self.usernames[fileno] = username
-                        self.capability[fileno] = formatted[3]
+                        self.capabilities[fileno] = formatted[3]
                         self.workdir[fileno] = formatted[4]
                         return True
             self.connections[fileno].send("Authenticate failed. Please try again!\nUsername:")
@@ -119,7 +119,12 @@ class MyFTPServer():
         :param fileno: the integer file description of the socket
         :return: none
         """
-        fd = file(filename + 'put', 'wb')
+        if os.path.exists(filename):
+
+            basename, extension = os.path.splitext(filename)
+            fd = file(basename + '_put' + extension, 'wb')
+        else:
+            fd = file(filename, 'wb')
         fd.write(content)
         fd.close()
 
@@ -132,13 +137,38 @@ class MyFTPServer():
         self.epoll.unregister(fileno)
         self.connections[fileno].close()
         del self.authenticated[fileno]
-        del self.capability[fileno]
+        del self.capabilities[fileno]
         del self.connections[fileno]
         del self.workdir[fileno]
         del self.usernames[fileno]
         del self.passwords[fileno]
         del self.responses[fileno]
         del self.requests[fileno]
+
+    def setInfo(self, fileno):
+        self.requests[fileno] = ''
+        self.responses[fileno] = ''
+        self.authenticated[fileno] = '0'
+
+    def verify(self, fileno, cmd):
+        """
+        varify capabilities of username
+        'r' -- have get permission
+        'w' -- have put permission
+        'rw' - have both get and put permission
+        :param fileno: the integer file description of the socket
+        :param cmd: 'put' or 'get'
+        :return: bool
+        """
+        if cmd == 'get':
+            if 'r' in self.capabilities[fileno]:
+                return True
+        elif cmd == 'put':
+            if 'w' in self.capabilities[fileno]:
+                return True
+        else:
+            pass
+        return False
 
     def run(self):
         """
@@ -149,18 +179,18 @@ class MyFTPServer():
             while True:
                 events = self.epoll.poll(1)
                 for fileno, event in events:
+                    # create new socket and monitor events on this socket
                     if fileno == self.serversocket.fileno():
                         connection, clientaddress = self.serversocket.accept()
                         self.connections[connection.fileno()] = connection
-                        self.requests[connection.fileno()] = b''
-                        # set unauthenticated
-                        self.authenticated[connection.fileno()] = '0'
+                        self.setInfo(connection.fileno())
                         connection.send('Username:')
                         # set unblocking
                         connection.setblocking(0)
                         # register read events on this socket
                         self.epoll.register(connection.fileno(), select.EPOLLIN)
 
+                    # Read event occurs
                     elif event == select.EPOLLIN:
                         self.requests[fileno] = self.connections[fileno].recv(BUFFERSIZE).strip()
                         req = self.requests[fileno]
@@ -202,27 +232,33 @@ class MyFTPServer():
                                 self.cdpath(self.workdir[fileno], fileno)
                             else:
                                 self.cdpath(req.split()[1], fileno)
-                        elif req.split()[0] == 'get':
-                            if (len(req.split())) == 1:
-                                self.responses[fileno] = 'please enter the filename\n!'
+                        elif 'get' == req.split()[0]:
+                            # verify capabilities
+                            if self.verify(fileno, 'get'):
+                                if (len(req.split())) == 1:
+                                    self.responses[fileno] = 'please enter the filename\n!'
+                                else:
+                                    self.getfile(req.split()[1], fileno)
                             else:
-                                self.getfile(req.split()[1], fileno)
-                        elif req.split()[0] == 'put':
-                            content_list = req.split('\n')[1:]  # remove 'put XXX'
-                            content = ''
-                            # compose content from content_list
-                            for i in range(len(content_list)):
-                                content = content + content_list[i] + '\n'
-                            self.putfile(req.split()[1], content, fileno)
-                            self.responses[fileno] = 'Done!\n'
+                                self.responses[fileno] = 'Permission denied\n'
+                        elif 'put' == req.split()[0]:
+                            # verify capabilities
+                            if self.verify(fileno, 'put'):
+                                content_list = req.split('\n')[1:]  # remove 'put XXX'
+                                content = ''
+                                # compose content from content_list
+                                for i in range(len(content_list)):
+                                    content = content + content_list[i] + '\n'
+                                self.putfile(req.split()[1], content, fileno)
+                                self.responses[fileno] = 'Done!\n'
+                            else:
+                                self.responses[fileno] = 'Permission denied\n'
                         elif req == 'Undone':
                             self.responses[fileno] = 'Undone!\n'
                         elif req == 'Done':
                             self.responses[fileno] = 'Done!\n'
-
                         else:
                             self.responses[fileno] = 'Command not found\n'
-
                         self.epoll.modify(fileno, select.EPOLLOUT)
                         print "Receive from %s:%d %s" % (
                             clientaddress[0], clientaddress[1], self.requests[fileno].split('\n')[0])
@@ -231,6 +267,8 @@ class MyFTPServer():
                     elif event == select.EPOLLOUT:
                         # if the client has been authenticated
                         if self.authenticated[fileno] != '2':
+                            self.connections[fileno].send(self.responses[fileno])
+                        elif 'get' == self.requests[fileno].split()[0] and self.verify(fileno, 'get'):
                             self.connections[fileno].send(self.responses[fileno])
                         else:
                             self.connections[fileno].send(
@@ -250,7 +288,8 @@ class MyFTPServer():
 
 if __name__ == '__main__':
     host = '0.0.0.0'
-    port = 8085
+    # port = 8085
+    port = 8089
     BUFFERSIZE = 2 ** 20
     server = MyFTPServer(host, port)
     server.run()
