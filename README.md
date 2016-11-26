@@ -72,12 +72,12 @@ one thing worth explaining is the 'State'.
 If the state is 1, the user is able to login. Otherwise the user is not permitted
 to login. This column is especially useful when you don't want someone to login temporarily.
 
-"""
+```
     State | Username | Password | Capabilities | Working Directory
     ---------------------------------------------------------------
     1     |  aaron   |   12345  |   w          |   /home/
     1     |  liqin   |   qqqqq  |   rw         |   /home/ftp
     1     |  Rachel  |   1996   |   r          |   /home/
     0     |  sky     |   abcd   |   rw         |   /tmp
-"""
+```
 
