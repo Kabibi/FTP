@@ -19,6 +19,7 @@ class MyFTPServer():
         self.passwords = {}
         self.authenticated = {}
         self.lastRequests = {}
+        self.configLines = self.getConfigLines('server_config.txt')
         self.error1 = 'Error 1: file doesn\'t exist\n'
         self.error2 = 'Error 2: Permission denied\n'
         self.help = '\033[31;1m' \
@@ -43,30 +44,36 @@ class MyFTPServer():
         # register interest in read events on serversocket
         self.epoll.register(self.serversocket.fileno(), select.EPOLLIN)
 
+    def getConfigLines(self, filename):
+        """
+        get all lines in configure file
+        :param filename:
+        :return: all lines
+        """
+        try:
+            configFile = open(filename, 'r')
+            allLines = configFile.readlines()
+            configFile.close()
+            return allLines
+        except IOError as msg:
+            print msg
+
     def auth(self, fileno, username, password):
         """
         authenticate client with the username and password provided
         :return: boolean
         """
-        # Read the configuration file
-        try:
-            configFile = open('server_config.txt')
-            allLines = configFile.readlines()
-            for line in allLines:
-                formatted = [x for x in line.split() if x != '|']
-                if formatted[0] == '1':
-                    # formatted[1] -> username
-                    # formatted[2] -> password
-                    # formatted[3] -> capabilities
-                    # formatted[4] -> working directory
-                    if username == formatted[1] and password == formatted[2]:
-                        self.usernames[fileno] = username
-                        self.capabilities[fileno] = formatted[3]
-                        self.workdir[fileno] = formatted[4]
-                        return True
-            return False
-        except IOError:
-            print IOError.message
+        for line in self.configLines:
+            formatted = [x for x in line.split() if x != '|']
+            if formatted[0] == '1':
+                # formatted[1] -> username, formatted[2] -> password
+                # formatted[3] -> capabilities, formatted[4] -> working directory
+                if username == formatted[1] and password == formatted[2]:
+                    self.usernames[fileno] = username
+                    self.capabilities[fileno] = formatted[3]
+                    self.workdir[fileno] = formatted[4]
+                    return True
+        return False
 
     def getPrompt(self, fileno):
         """
@@ -333,6 +340,8 @@ class MyFTPServer():
                         self.release(fileno)
 
         except socket.error as msg:
+            print msg
+        except IOError as msg:
             print msg
         finally:
             self.run()
