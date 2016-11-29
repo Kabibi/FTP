@@ -2,7 +2,7 @@
 
 ## Introduction
 
-* It is a simple FTP Server and Client. The server is implemented by 
+* The project implements simple FTP server and client. The server is implemented by 
 epoll and use passive mode to transform data. The client is 
 just a simple command-line TCP-based interactive program.
 
@@ -13,18 +13,20 @@ put and bye.
 * The server is implemented by epoll and administrator can configure usernames,
  passwords, capabilities and working directories.
  
-* The project only supports Python 2.
+* Only supports Python 2.
+
 
 ## Getting started
 
-Make sure you run server before client, or you will get error 
-message like 'Connection refused'. Once you have run both server
-and client, have fun with it.
+### How to run
+
+Run server before client, or you will get error 
+message like 'Connection refused'. Have fun!
 
 ### login
 
-Before you login, you can use all command this program supports 
-except 'get' and 'put'. That means you are denied to put or get file 
+Before logging in, you can use all commands this program support 
+except 'get' and 'put'. Because you are denied to put or get file 
 to and from server as a guest. Users' permissions are set in 'server_config.txt'.
 
 |Permission|explanation                          |
@@ -35,28 +37,50 @@ to and from server as a guest. Users' permissions are set in 'server_config.txt'
 
 ### ll or ls
 
-By type 'll' or 'ls', you can list all file and directories
+By typing 'll' or 'ls', you can list all files and directories
 in current directory. Try it!
 
 ### cd
 
-Change directory. All the same as the shell.
+Change directory. All the same as common shell.
+For example: 
+
+```python
+guest@/home/aaron: cd ..   # go back to previous directory
+guest@/home: cd            # go to your working directory specified by 'server_config.txt'
+guest@/tmp:                 
+```
 
 ### get
 
-You can download file from server by typing 'get filename'. But make sure 
+```python
+guest@/tmp: get a.txt
+Error 2: Permission denied      # because you are guest
+```
+
+You can download file from server by typing 'get filename'. Make sure 
 the file you want is in your current directory and whether your have the 
 'get' permission. 
 
-If the file you get conflicts with your file. Then basename of file will 
-be appended with '_get'. For example, you want to download 'a.txt' from server,
-but it already exists in your current directory, then this file will be named 
+```python
+aaron@/home/aaron: get a.txt    # you have logged in as aaron
+Done!
+```
+
+If the file you get conflicts with your file. '_get' will be appended to the end 
+of the basename of the file. For example, you want to download 'a.txt' from server,
+but it already exists in your current directory, this file will be named 
 to 'a_get.txt'.
 
 ### put
 
+```python
+aaron@/home/aaron: put a.txt    # you have logged in as aaron
+Done!
+```
+
 You can upload file to server by typing 'put filename'. Make
-sure file you want to upload exists and you have the permission to 'put'.
+sure the file you want to upload already exists and you have the permission to 'put'.
 
 Just like 'get', if filename conflicts, the file you upload will be named to 'a_put.txt'.
 
