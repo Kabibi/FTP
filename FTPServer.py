@@ -1,6 +1,3 @@
-"""
-login bug
-"""
 import os
 import select
 import socket
@@ -208,7 +205,7 @@ class MyFTPServer():
                 if self.verify(fileno, 'get'):
                     filename = self.requests[fileno].split()[1]
                     # verify the existence of the file
-                    if os.path.exists(filename):
+                    if os.path.isfile(filename):
                         fd = open(filename, 'rb')
                         while True:
                             content = fd.read(buffersize)
@@ -349,7 +346,7 @@ class MyFTPServer():
 
 if __name__ == '__main__':
     host = '0.0.0.0'
-    port = 8085
+    port = 8089
     buffersize = 4096
     server = MyFTPServer(host, port)
     server.run()

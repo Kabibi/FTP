@@ -1,5 +1,3 @@
-# coding: utf-8
-
 import os
 import socket
 
@@ -96,7 +94,8 @@ class FTPClient():
 
 if __name__ == '__main__':
     host = '127.0.0.1'
-    port = 8085
+    # port = 8085
+    port = 8089
     buffersize = 4096
     client = FTPClient(host, port)
     client.start()
